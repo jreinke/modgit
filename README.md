@@ -1,6 +1,6 @@
 # Deploy Git modules with include/exclude features
 
-*modgit* is an alternative to the excellent [modman tool](http://code.google.com/p/module-manager/). Directly inspired from it, *modgit* allows you to deploy Git modules physically in your project (no symlinks). Additionnaly, you can define include/exclude filters to deploy only files and folders of your choice.
+*modgit* is an alternative to the excellent [modman tool](http://code.google.com/p/module-manager/). Directly inspired from it, *modgit* allows you to deploy Git modules physically in your project (no symlinks). Additionaly, you can define include/exclude filters to deploy only files and folders of your choice.
 
 ## Requirements
 * bash
@@ -30,15 +30,17 @@ Remove a module:
 
     $ modgit remove <module>
 
-List all modules:
+List installed modules:
 
     $ modgit list
-    
+
 ## Advanced usage
 Include filter:
+
     $ modgit -i lib/ clone elastica git://github.com/ruflin/Elastica.git
 
 Exclude filter:
+
     $ modgit -e modman -e README.md -e LICENSE.txt clone ecomdev-phpunit https://github.com/IvanChepurnyi/EcomDev_PHPUnit.git
 
 ## TODO
