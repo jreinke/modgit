@@ -49,7 +49,6 @@ Exclude filter:
 
 ## TODO
 
-* Add custom options to git clone command
-* Add dry-run option
-
-## 
+1. Add custom options to git clone command
+2. Add dry-run option
+ 
