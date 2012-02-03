@@ -47,8 +47,7 @@ Exclude filter:
 
     $ modgit -e modman -e README.md -e LICENSE.txt clone mage-phpunit https://github.com/IvanChepurnyi/EcomDev_PHPUnit.git
 
-## TODO
+## Coming soon
 
-1. Add custom options to git clone command
-2. Add dry-run option
- 
+* Add custom options to git clone command
+* Add dry-run option
