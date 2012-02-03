@@ -41,10 +41,9 @@ Include filter:
 
 Exclude filter:
 
-    $ modgit -e modman -e README.md -e LICENSE.txt clone ecomdev-phpunit https://github.com/IvanChepurnyi/EcomDev_PHPUnit.git
+    $ modgit -e modman -e README.md -e LICENSE.txt clone mage-phpunit https://github.com/IvanChepurnyi/EcomDev_PHPUnit.git
 
 ## TODO
 * Add custom options to git clone command
 * Add dry-run option
 
-Any improvement suggestions are welcome!
