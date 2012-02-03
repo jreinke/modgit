@@ -47,3 +47,4 @@ Exclude filter:
 * Add custom options to git clone command
 * Add dry-run option
 
+Any improvement suggestions are welcome!
