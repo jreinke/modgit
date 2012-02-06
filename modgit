@@ -1,6 +1,6 @@
 #!/bin/bash
 
-version="0.0.1"
+version="0.0.2"
 script=${0##*/}
 usage="\
 Module Git (v$version)
@@ -15,14 +15,14 @@ Global Commands:
   -v                      display the modgit script's version
 
 Module Commands:
-  $script [options] <command> <module> [<src>] -- [<git options>]
--------------------------------------------------------------------
+  $script [options] <command> <module> [<src>] [<git options>]
+----------------------------------------------------------------
   clone <module> <src>    clone a git repository
-  update <module> [<src>] update module with optional new repository
+  update <module>         update module
   remove <module>         remove module
   [<git options>]         specify additional parameters to git clone
-  -i                      include filter: -i app/ -i README ...
-  -e                      exclude filter: -e file -e lib/tests ...
+  -i                      include filter: -i app/ -i README [...]
+  -e                      exclude filter: -e file.txt -e lib/tests [...]
 "
 
 dry_run=0
@@ -143,14 +143,22 @@ move_files ()
 # Creates module dir, clones git repo then apply include/exclude filters
 create_module ()
 {
-  local repo=$1
-  local dir=$2
+  local repo=$1;
+  local dir=$2; shift 2
+  local git_options=$@
+
   cd "$modgit_dir"
-  git clone --recursive "$repo" "$dir"
+
+  if ! git clone --recursive $git_options -- $repo $dir; then
+    echo_b "Error cloning $repo to $dir dir."
+    rm -rf $dir 2>/dev/null
+    exit 1
+  fi
+
   if [ -d "$dir" ] &&
     cd "$dir" &&
     rm -rf .git &&
-    echo "$repo" > source.modgit &&
+    echo "$repo tmp $git_options" > source.modgit &&
     find . -type f -not -name "*.modgit" | sed 's/^\.\///' >> source.modgit
     touch includes.modgit
     touch excludes.modgit
@@ -197,31 +205,28 @@ create_module ()
   fi
 }
 
-# Updates a module, calls create_module with original git repo or
-# clone a another one with optional include/exclude filters
+# Updates a module, calls create_module with original git repo and include/exclude filters
 update_module ()
 {
   local module=$1
   local module_dir="$modgit_dir/$module"
-  local repo=''
+  local src=$(head -1 "$module_dir/source.modgit")
 
   if [ -z $includes ]; then
     while read line; do
       add_include $line
     done < <(tail "$module_dir/includes.modgit")
   fi
-  
+
   if [ -z $excludes ]; then
     while read line; do
       add_exclude $line
     done < <(tail "$module_dir/excludes.modgit")
   fi
-  
-  if [ $2 ]; then repo=$2; else repo=$(head -1 "$module_dir/source.modgit"); fi
-  
+
   if require_module_dir "$module" &&
     rm -rf "$modgit_dir/tmp" 2>/dev/null
-    create_module "$repo" "$modgit_dir/tmp" &&
+    create_module $src &&
     delete_files "$module_dir" &&
     rm "$module_dir/source.modgit" &&
     cp -pRP "$modgit_dir/tmp/" "$module_dir" &&
@@ -300,15 +305,19 @@ case "$action" in
   clone)
 
     if [[ "$module" =~ $REGEX_ACTION ]]; then
-      echo_b "You cannot $action a module with a name matching $REGEX_ACTION."; exit 1
+      echo_b "-e" "You cannot $action a module with a name matching $REGEX_ACTION.\nModule specified: $module"; exit 1
     fi
 
-    if [ "$action" = "clone" ] && [ -d "$module_dir" ]; then
+    if [[ "$module" =~ [^a-z0-9_-]+ ]]; then
+      echo_b "-e" "You cannot $action a module with a name not matching [^a-z0-9_-]+ pattern.\nModule specified: $module"; exit 1
+    fi
+
+    if [ -d "$module_dir" ]; then
       echo_b "A module with this name has already been cloned."; exit 1
     fi
 
     repo=$1; shift
-    create_module "$repo" "$module" && success=1
+    create_module $repo $module $@ && success=1
 
     if [ $success -eq 1 ]; then
       if require_module_dir "$module" &&
@@ -324,7 +333,7 @@ case "$action" in
 
   update)
 
-    if update_module "$module" "$1"
+    if update_module "$module"
     then
       echo_b "Update of $module complete."
     else
