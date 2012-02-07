@@ -48,11 +48,11 @@ Exclude filter:
 
     $ modgit -e modman -e README.md -e LICENSE.txt clone mage-phpunit https://github.com/IvanChepurnyi/EcomDev_PHPUnit.git
 
-modman mode (parse remote modman file for files and folders mapping):
+Enable modman mode (parse remote modman file for files and folders mapping):
 
     $ modgit -m clone magneto-debug https://github.com/madalinoprea/magneto-debug.git
 
-git options:
+Git options:
 
     $ modgit clone elastica https://github.com/ruflin/Elastica.git --branch gh-pages
 
