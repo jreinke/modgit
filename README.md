@@ -60,7 +60,7 @@ Include filter with custom target:
 
 Exclude filter:
 
-    $ modgit -e modman -e README.md -e LICENSE.txt clone mage-phpunit https://github.com/IvanChepurnyi/EcomDev_PHPUnit.git
+    $ modgit -e tests clone atoum https://github.com/mageekguy/atoum
 
 Automatic modman compatibility (parse remote modman file for files and folders mapping):
 
