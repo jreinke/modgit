@@ -1,6 +1,6 @@
 #!/bin/bash
 
-version="0.0.2"
+version="0.1.0"
 script=${0##*/}
 usage="\
 Module Git (v$version)
@@ -21,17 +21,15 @@ Module Commands:
   update <module>         update module
   remove <module>         remove module
   [<git options>]         specify additional parameters to git clone
-  -m                      enable modman mode when cloning (parse remote modman file for mapping)
   -i                      include filter: -i app/ -i README [...]
   -e                      exclude filter: -e file.txt -e lib/tests [...]
 "
 
 dry_run=0
-modman_mode=0
 includes=''
 excludes=''
 
-add_include ()
+add_include()
 {
   if [ -z $includes ]; then
     includes="$1"
@@ -40,7 +38,7 @@ add_include ()
   fi
 }
 
-add_exclude ()
+add_exclude()
 {
   if [ -z $excludes ]; then
     excludes="$1"
@@ -50,7 +48,7 @@ add_exclude ()
 }
 
 # Handle options
-while getopts ":nvhmi:e:" opt; do
+while getopts ":nvhi:e:" opt; do
   case $opt in
     h)
       echo -e "$usage"
@@ -62,10 +60,6 @@ while getopts ":nvhmi:e:" opt; do
       ;;
     n)
       dry_run=1
-      shift $((OPTIND-1)); OPTIND=1
-      ;;
-    m)
-      modman_mode=1
       shift $((OPTIND-1)); OPTIND=1
       ;;
     i)
@@ -88,7 +82,7 @@ while getopts ":nvhmi:e:" opt; do
 done
 
 # Echo in bold
-echo_b ()
+echo_b()
 {
   if [ "$1" = "-e" ]; then
     echo -e "$(tput bold)$2$(tput sgr0)"
@@ -105,37 +99,23 @@ if [ "$1" = "init" ]; then
 fi
 
 # Checks if module dir exists or quit
-require_module_dir ()
+require_module_dir()
 {
   if ! [ -d "$modgit_dir/$1" ]; then
     echo_b "ERROR: $1 does not exist.";
     exit 1
   fi
+
   return 0
 }
 
-force_copy ()
+delete_files()
 {
-  mkdir -p $(dirname $2) && cp "$1" "$2";
-}
+  local module=$1
+  local module_dir="$modgit_dir/$module"
+  local deployed_file="$module_dir/deployed.modgit"
 
-# Removes module files from root dir
-delete_files ()
-{
-  local module_dir=$1
   while read line; do
-    if [ -s "$module_dir/includes.modgit" ]; then
-      while read filter; do
-        src=$(echo $filter | cut -d: -f1)
-        dest=$(echo $filter | cut -d: -f2)
-        _src="${src//\//\\/}"
-        _dest="${dest//\//\\/}"
-        if [ "$src" != "$dest" ] && [[ "$line" =~ ^$_src ]]; then
-          line=$(echo $line | sed "s/$_src/$_dest/g")
-          break
-        fi
-      done < <(cat "$module_dir/includes.modgit")
-    fi
     if ! [ -z $line ] && [ -f "$root/$line" ]; then
       rm "$root/$line" 2>/dev/null
       prev_dir=''
@@ -149,114 +129,19 @@ delete_files ()
         dir=${dir%/*}
       done
     fi
-  done < <(tail +2 "$module_dir/source.modgit")
+  done < <(cat "$deployed_file" 2>/dev/null)
+
   return 0
 }
 
-# Synchronizes files from module dir to root dir then removes source files
-move_files ()
+# Removes a module
+delete_module()
 {
-  local module_dir=$1
-  cd "$module_dir"
-  if [ -s includes.modgit ]; then
-    mkdir "$modgit_dir/tmp"
-    while read file; do
-      if ! [ -s $file ]; then continue; fi
-      target="$modgit_dir/tmp/$file"
-      while read filter; do
-        src=$(echo $filter | cut -d: -f1)
-        dest=$(echo $filter | cut -d: -f2)
-        _src="${src//\//\\/}"
-        _dest="${dest//\//\\/}"
-        if [ "$src" != "$dest" ] && [[ "$file" =~ ^$_src ]]; then
-          target="$modgit_dir/tmp/"$(echo $file | sed "s/$_src/$_dest/g")
-          break
-        fi
-      done < <(cat includes.modgit)
-      force_copy $file $target || echo $file $target
-    done < <(tail +2 source.modgit)
-    cd "$modgit_dir/tmp"
-  fi
-  rsync -a --exclude "*.modgit" --exclude ".gitignore" "." "$root"
-  cd "$module_dir"
-  find . -not -name "*.modgit" -exec rm -rf {} \; 2>/dev/null
-  rm -rf "$modgit_dir/tmp" 2>/dev/null
-  return 0
-}
+  local module=$1
+  local module_dir="$modgit_dir/$module"
 
-# Creates module dir, clones git repo then apply include/exclude filters
-create_module ()
-{
-  local repo=$1;
-  local dir=$2; shift 2
-  local git_options=$@
-
-  cd "$modgit_dir"
-
-  if ! git clone --recursive $git_options -- $repo $dir; then
-    echo_b "Error cloning $repo to $dir dir."
-    rm -rf $dir 2>/dev/null
-    exit 1
-  fi
-
-  if [ -d "$dir" ] &&
-    cd "$dir" &&
-    rm -rf .git &&
-    echo "$repo tmp $git_options" > source.modgit &&
-    find . -type f -not -name "*.modgit" | sed 's/^\.\///' >> source.modgit
-    touch includes.modgit
-    touch excludes.modgit
-
-    # Handle modman mode (converts modman file into include filters)
-    if [ $modman_mode -eq 1 ] && [ -s modman ]; then
-      while read line; do
-        if [ -z "$line" ] || [[ $line =~ ^# ]] || [[ $line =~ ^@ ]]; then
-          continue
-        fi
-        line=$(echo $line | sed "s/ /:/g")
-        echo $line >> includes.modgit
-      done < <(cat modman)
-    fi
-
-    if ! [ -z $includes ]; then
-      echo -e $includes >> includes.modgit
-    fi
-    if ! [ -z $excludes ]; then
-      echo -e $excludes > excludes.modgit
-    fi
-
-    if [ -s includes.modgit ] || [ -s excludes.modgit ]; then
-      while read file; do
-        if [ -s includes.modgit ]; then delete=1; else delete=0; fi
-
-        # Include filters
-        while read filter; do
-          filter=$(echo $filter | cut -d: -f1)
-          if [ -z $filter ]; then
-            continue
-          fi
-          if [[ $file =~ ^$filter ]]; then
-            delete=0
-            break
-          fi
-        done < <(cat includes.modgit)
-
-        if [ $delete -eq 0 ]; then
-          # Exclude filters
-          while read filter; do
-            if [[ $file =~ ^$filter ]]; then
-              delete=1
-              break
-            fi
-          done < <(cat excludes.modgit)
-        fi
-
-        if [ $delete -eq 1 ]; then
-          rm -f $file
-        fi
-      done < <(tail +2 source.modgit)
-      find . -depth -type d -empty -exec rmdir {} \; 2> /dev/null
-    fi
+  if delete_files "$module" &&
+    rm -rf "$module_dir" 2>/dev/null;
   then
     return 0
   else
@@ -264,39 +149,134 @@ create_module ()
   fi
 }
 
-# Updates a module, calls create_module with original git repo and include/exclude filters
-update_module ()
+deploy_file()
+{
+  mkdir -p $(dirname $2) && cp "$1" "$2"
+}
+
+# Synchronizes files from module dir to root dir, then store deployed files for easy remove
+move_files()
 {
   local module=$1
   local module_dir="$modgit_dir/$module"
+  local source_dir="$module_dir/source"
+  local includes_file="$module_dir/includes.modgit"
+  local excludes_file="$module_dir/excludes.modgit"
+  local modman_file="$source_dir/modman"
+  local deployed_file="$module_dir/deployed.modgit"
+
+  cd "$source_dir" || return 1
+
+  while read file; do
+    # Copy file by default
+    copy=1
+    target="$file"
+
+    # Include filters
+    if [ -s "$includes_file" ]; then
+      copy=0
+      while read filter; do
+        src=$(echo $filter | cut -d: -f1)
+        if [ -z $src ]; then
+          continue
+        fi
+        if [[ "$file" =~ ^$src ]]; then
+          copy=1
+          # Handle optional different target
+          real=$(echo $filter | cut -d: -f2)
+          if [ "$src" != "$real" ]; then
+            target=$(echo $file | sed "s/$src/$real/g")
+          fi
+          break
+        fi
+      done < <(cat "$includes_file")
+    fi
+
+    # Exclude filters
+    if [ -s "$excludes_file" ] && [ $copy -eq 1 ]; then
+      while read filter; do
+        if [[ "$file" =~ ^$filter ]]; then
+          copy=0
+          break
+        fi
+      done < <(cat "$excludes_file")
+    fi
+
+    if [ $copy -eq 1 ]; then
+      # Handle modman file
+      if [ -s "$modman_file" ]; then
+        while read line; do
+          if [ -z "$line" ] || [[ $line =~ ^# ]] || [[ $line =~ ^@ ]]; then
+            continue
+          fi
+          set -- $line
+          if [[ "$file" =~ ^$1 ]]; then
+            # Remove trailing slashes and escape paths for sed
+            src=$(echo $1 | sed 's/^[\/]*//;s/[\/]*$//')
+            dest=$(echo $2 | sed 's/^[\/]*//;s/[\/]*$//')
+            src="${src//\//\\/}"
+            dest="${dest//\//\\/}"
+            target=$(echo $file | sed "s/$src/$dest/g")
+            deploy_file "$file" "$root/$target"
+            echo "$target" >> "$deployed_file"
+          fi
+        done < <(cat "$modman_file")
+      else
+        deploy_file "$file" "$root/$target"
+        echo "$file" >> "$deployed_file"
+      fi
+    fi
+  done < <(find . -type f | grep -v '^\.\/.git.*' | sed 's/^\.\///')
+
+  return 0
+}
+
+# Creates module dir, clones git repo and optionally stores include/exclude filters
+create_module()
+{
+  local repo=$1;
+  local module=$2
+  local module_dir="$modgit_dir/$module"; shift 2
+  local source_dir="$module_dir/source"
+  local git_options=$@
+
+  cd "$modgit_dir"
+
+  if ! git clone --recursive $git_options -- $repo "$source_dir"; then
+    echo_b "Error cloning $repo to $source_dir."
+    rm -rf "$module_dir" 2>/dev/null
+    exit 1
+  fi
+
+  if ! [ -z $includes ]; then
+    echo -e $includes > "$module_dir/includes.modgit"
+  fi
+  if ! [ -z $excludes ]; then
+    echo -e $excludes > "$module_dir/excludes.modgit"
+  fi
+
+  return 0
+}
+
+# Updates a module
+update_module()
+{
+  local module=$1
+  local module_dir="$modgit_dir/$module"
+  local source_dir="$module_dir/source"
 
   require_module_dir "$module"
 
-  local src=$(head -1 "$module_dir/source.modgit")
+  cd "$source_dir"
 
-  if [ -z $includes ]; then
-    while read line; do
-      add_include $line
-    done < <(cat "$module_dir/includes.modgit")
-  fi
+  git pull && git submodule update --init --recursive && success=1
 
-  if [ -z $excludes ]; then
-    while read line; do
-      add_exclude $line
-    done < <(cat "$module_dir/excludes.modgit")
-  fi
-
-  if rm -rf "$modgit_dir/tmp" 2>/dev/null
-    create_module $src &&
-    delete_files "$module_dir" &&
-    rm "$module_dir/source.modgit" &&
-    cp -pRP "$modgit_dir/tmp/" "$module_dir" &&
-    rm -rf "$modgit_dir/tmp" &&
-    move_files "$module_dir";
+  if [ $success -eq 1 ] &&
+    delete_files "$module" &&
+    move_files "$module";
   then
     return 0
   else
-    rm -rf "$modgit_dir/tmp" 2>/dev/null
     return 1
   fi
 }
@@ -354,8 +334,8 @@ if [ -z "$module" ] || [ -n "$1" -a -d "$modgit_dir/$1" ]; then
   module=$1; shift               # module name is first argument
 fi
 
-[ -z "$module" ] && { echo "Not enough arguments (no module specified)"; exit 1; }
-[ -z "$action" ] && { echo "Not enough arguments (no action specified)"; exit 1; }
+[ -z "$module" ] && { echo_b "Not enough arguments (no module specified)"; exit 1; }
+[ -z "$action" ] && { echo_b "Not enough arguments (no action specified)"; exit 1; }
 
 cd "$_pwd"                       # restore old root
 module_dir="$modgit_dir/$module" # working copy directory for module
@@ -366,15 +346,15 @@ case "$action" in
   clone)
 
     if [[ "$module" =~ $REGEX_ACTION ]]; then
-      echo_b "-e" "You cannot $action a module with a name matching $REGEX_ACTION.\nModule specified: $module"; exit 1
+      echo_b "-e" "You cannot $action a module with a name matching $REGEX_ACTION.\nModule specified: $module" && exit 1
     fi
 
     if [[ "$module" =~ [^a-z0-9_-]+ ]]; then
-      echo_b "-e" "You cannot $action a module with a name not matching [^a-z0-9_-]+ pattern.\nModule specified: $module"; exit 1
+      echo_b "-e" "You cannot $action a module with a name not matching [^a-z0-9_-]+ pattern.\nModule specified: $module" && exit 1
     fi
 
     if [ -d "$module_dir" ]; then
-      echo_b "A module with this name has already been cloned."; exit 1
+      echo_b "A module with this name has already been cloned." && exit 1
     fi
 
     repo=$1; shift
@@ -382,7 +362,7 @@ case "$action" in
 
     if [ $success -eq 1 ]; then
       if require_module_dir "$module" &&
-        move_files "$module_dir";
+        move_files "$module";
       then
         echo_b "Clone of $module complete."
       fi
@@ -403,10 +383,9 @@ case "$action" in
     ;;
 
   remove)
-  
+
     if require_module_dir "$module" &&
-      delete_files "$module_dir" &&
-      rm -rf "$module_dir";
+      delete_module "$module";
     then
       echo_b "Removal of $module complete."
     else
