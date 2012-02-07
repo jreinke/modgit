@@ -6,10 +6,20 @@
 
 * bash
 * git
-* rsync
 
 ## Installation
 
+### curl installation
+* curl https://raw.github.com/jreinke/modgit/master/modgit > modgit
+* chmod +x modgit
+* sudo mv /usr/local/bin
+
+### wget installation
+* wget -O modgit https://raw.github.com/jreinke/modgit/master/modgit
+* chmod +x modgit
+* sudo mv modgit /usr/local/bin
+
+### Manual download
 * Download shell script from [download page](https://github.com/jreinke/modgit/downloads)
 * Copy modgit file to `/usr/local/bin` (or any folder in your $PATH)
 * Performs `chmod +x modgit`
@@ -44,13 +54,17 @@ Include filter:
 
     $ modgit -i lib/ clone elastica git://github.com/ruflin/Elastica.git
 
+Include filter with custom target:
+
+    $ modgit -i lib:library clone elastica git://github.com/ruflin/Elastica.git
+
 Exclude filter:
 
     $ modgit -e modman -e README.md -e LICENSE.txt clone mage-phpunit https://github.com/IvanChepurnyi/EcomDev_PHPUnit.git
 
-Enable modman mode (parse remote modman file for files and folders mapping):
+Automatic modman compatibility (parse remote modman file for files and folders mapping):
 
-    $ modgit -m clone magneto-debug https://github.com/madalinoprea/magneto-debug.git
+    $ modgit clone magneto-debug https://github.com/madalinoprea/magneto-debug.git
 
 Git options:
 
