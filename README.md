@@ -12,7 +12,7 @@
 ### curl installation
 * curl https://raw.github.com/jreinke/modgit/master/modgit > modgit
 * chmod +x modgit
-* sudo mv /usr/local/bin
+* sudo mv modgit /usr/local/bin
 
 ### wget installation
 * wget -O modgit https://raw.github.com/jreinke/modgit/master/modgit
