@@ -185,7 +185,13 @@ move_files()
           # Handle optional different target
           real=$(echo $filter | cut -d: -f2)
           if [ "$src" != "$real" ]; then
-            target=$(echo $file | sed "s/$src/$real/g")
+            tmp_src=$(echo $src | sed 's/^[\/]*//;s/[\/]*$//')
+            tmp_src="$tmp_src/"
+            tmp_src="${tmp_src//\//\\/}"
+            tmp_real=$(echo $real | sed 's/^[\/]*//;s/[\/]*$//')
+            tmp_real="$tmp_real/"
+            tmp_real="${tmp_real//\//\\/}"
+            target=$(echo $file | sed "s/$tmp_src/$tmp_real/g")
           fi
           break
         fi
