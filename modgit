@@ -270,6 +270,7 @@ update_module()
   local module=$1
   local module_dir="$modgit_dir/$module"
   local source_dir="$module_dir/source"
+  local success=0
 
   require_module_dir "$module"
 
