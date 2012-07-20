@@ -44,6 +44,10 @@ Remove a module:
 
     $ modgit remove <module>
 
+Remove all modules:
+
+    $ modgit remove-all
+
 List installed modules:
 
     $ modgit list
