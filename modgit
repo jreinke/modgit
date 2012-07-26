@@ -322,6 +322,23 @@ elif [ "$1" = "update-all" ]; then
   done < <(ls -1 "$modgit_dir")
   echo_b "Updated all modules with $update_errors update errors."
   exit 0
+  
+# remove-all command
+elif [ "$1" = "remove-all" ]; then
+  if [ -n "$2" ]; then echo "Too many arguments for remove-all command."; exit 1; fi
+  removeall_errors=0
+  removeall=''
+  while read -d $'\n' module; do
+    test -d "$modgit_dir/$module" || continue;
+    echo "Remove $module..."
+    if ! delete_module "$module"; then
+      echo_b "-e" "Error occurred while masive remove '$module'.\n"
+      removeall_errors=$((removeall_errors+1))
+    fi
+  done < <(ls -1 "$modgit_dir")
+  echo_b "Remove all modules with $removeall_errors remove errors."
+  exit 0
+
 fi
 
 #############################################
