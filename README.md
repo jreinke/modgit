@@ -1,79 +1,89 @@
-# Deploy Git modules with include/exclude features
+# Deploy multiple Git repositories in an unique folder
 
-*modgit* is an alternative to the excellent [modman tool](http://code.google.com/p/module-manager/). Directly inspired from it, *modgit* allows you to deploy Git modules physically in your project (no symlinks). Additionaly, you can define include/exclude filters to deploy only files and folders of your choice.
-
-## Requirements
-
-* bash
-* git
+`modgit` is a shell script for deploying multiple Git repositories in root folder of any project, which is not possible with default `git submodule` command. A common use case would be the easy installation of Magento modules that need to be deployed in root folder.
 
 ## Installation
 
 ### curl installation
-* curl https://raw.github.com/jreinke/modgit/master/modgit > modgit
-* chmod +x modgit
-* sudo mv modgit /usr/local/bin
+
+    $ curl https://raw.github.com/jreinke/modgit/master/modgit > modgit
+    $ chmod +x modgit
+    $ sudo mv modgit /usr/local/bin
 
 ### wget installation
-* wget -O modgit https://raw.github.com/jreinke/modgit/master/modgit
-* chmod +x modgit
-* sudo mv modgit /usr/local/bin
+
+    $ wget -O modgit https://raw.github.com/jreinke/modgit/master/modgit
+    $ chmod +x modgit
+    $ sudo mv modgit /usr/local/bin
 
 ### Manual download
-* Download shell script from [download page](https://github.com/jreinke/modgit/downloads)
+* Download shell script [here](https://raw.github.com/jreinke/modgit/master/modgit)
 * Copy modgit file to `/usr/local/bin` (or any folder in your $PATH)
-* Performs `chmod +x modgit`
+* Run `chmod +x modgit`
 
 ## Usage
 
-Install a module:
+### Install a module
 
-    $ cd /my/project/path
+    $ cd /path/to/project
     $ modgit init
-    $ modgit clone <module> <git_repository>
+    $ modgit add [-n] [-t tag_name] [-b branch_name] <module> <git_repository>
 
-Update a module:
+### Update a module
 
-    $ modgit update <module>
+    $ modgit up [-n] <module>
 
-Update all modules:
+### Update all modules
 
-    $ modgit update-all
+    $ modgit up-all [-n]
 
-Remove a module:
+### Remove a module
 
-    $ modgit remove <module>
+    $ modgit rm [-n] <module>
 
-Remove all modules:
+### Remove all modules
 
-    $ modgit remove-all
+    $ modgit rm-all [-n]
 
-List installed modules:
+### List installed modules
 
-    $ modgit list
+    $ modgit ls
+
+### Show information about an installed module
+
+    $ modgit info <module>
+
+### Show deployed files of an installed module
+
+    $ modgit files <module>
+
+### Show help
+
+    $ modgit help
 
 ## Advanced usage
 
-Include filter:
+### Dry run mode
 
-    $ modgit -i lib/ clone elastica git://github.com/ruflin/Elastica.git
+    $ modgit add -n scheduler https://github.com/fbrnc/Aoe_Scheduler.git
+      => show what would be done
 
-Include filter with custom target:
+### Include filter
 
-    $ modgit -i lib:library clone elastica git://github.com/ruflin/Elastica.git
+    $ modgit add -i lib/ elastica git://github.com/ruflin/Elastica.git
+      => will deploy only lib/ folder
 
-Exclude filter:
+### Include filter with custom target
 
-    $ modgit -e tests clone atoum https://github.com/mageekguy/atoum
+    $ modgit -i lib/:library/ add elastica git://github.com/ruflin/Elastica.git
+      => will deploy only lib/ (remote folder) to library/ (local folder)
 
-Automatic modman compatibility (parse remote modman file for files and folders mapping):
+### Exclude filter
 
-    $ modgit clone magneto-debug https://github.com/madalinoprea/magneto-debug.git
+    $ modgit add -e tests/ atoum https://github.com/atoum/atoum.git
+      => will deploy all remote files and folders, except tests/ folder
 
-Git options:
+### Automatic modman compatibility
 
-    $ modgit clone elastica https://github.com/ruflin/Elastica.git --branch gh-pages
-
-## Coming soon
-
-* Add dry-run option
+    $ modgit add debug https://github.com/madalinoprea/magneto-debug.git
+      => will parse remote modman file for files and folders mapping
