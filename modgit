@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION="1.0.0"
+VERSION="1.0.1"
 GITHUB="https://github.com/jreinke/modgit"
 AUTHOR="Johann Reinke"
 SCRIPT=${0##*/}
@@ -284,7 +284,7 @@ move_files()
 
   [ $DRY_RUN -eq 1 ] && echo_b "Would deploy:" || echo_b "Deploying:"
 
-  for file in $(find . -type f -not -iwholename '*.git/*' | sed 's/^\.\///'); do
+  for file in $(find . -type f -not -iwholename '*.git*' | sed 's/^\.\///'); do
     # Copy file by default
     copy=1
     target="$file"
