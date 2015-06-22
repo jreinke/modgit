@@ -6,15 +6,15 @@
 
 ### curl installation
 
-    $ curl https://raw.github.com/jreinke/modgit/master/modgit > modgit
+    $ curl https://raw.githubusercontent.com/jreinke/modgit/master/modgit > modgit
     $ chmod +x modgit
-    $ sudo mv modgit /usr/local/bin
+    $ mv modgit /usr/local/bin
 
 ### wget installation
 
-    $ wget -O modgit https://raw.github.com/jreinke/modgit/master/modgit
+    $ wget -O modgit https://raw.githubusercontent.com/jreinke/modgit/master/modgit
     $ chmod +x modgit
-    $ sudo mv modgit /usr/local/bin
+    $ mv modgit /usr/local/bin
 
 ### Manual download
 * Download shell script [here](https://raw.github.com/jreinke/modgit/master/modgit)
