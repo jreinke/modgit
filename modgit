@@ -357,6 +357,106 @@ move_files()
   return 0
 }
 
+# Synchronizes files affected by commit history
+sync_changelist_files()
+{
+  local module="$1"
+  local module_dir="$MODGIT_DIR/$module"
+  local source_dir="$module_dir/source"
+  local includes_file="$module_dir/includes.modgit"
+  local excludes_file="$module_dir/excludes.modgit"
+  local modman_file="$source_dir/modman"
+  local deployed_file="$module_dir/deployed.modgit"
+
+  > "$deployed_file" # empty file
+
+  cd "$source_dir" || return 1
+
+  [ $DRY_RUN -eq 1 ] && echo_b "Would deploy:" || echo_b "Deploying:"
+
+#todo: place output of `find` into var $repofiles, and also git diff list of changed files var $changelist
+
+#  foreach(target in $changelist[delete]) delete target.
+#  then foreach(file in ...) do
+#  if file in $repofiles & $changelist[add, modify],
+#    deploy and echo to $deployed_file
+#   else
+#    echo to $deployed_file
+
+
+  for file in $(find . -type f -not -iwholename '*.git*' | sed 's/^\.\///'); do
+    # Copy file by default
+    copy=1
+    target="$file"
+
+    # Include filters
+    if [ -s "$includes_file" ]; then
+      copy=0
+      for filter in $(cat "$includes_file"); do
+        src=$(echo $filter | cut -d: -f1)
+        if [ -z "$src" ]; then
+          continue
+        fi
+        if [[ "$file" =~ ^$src ]]; then
+          copy=1
+          # Handle optional different target
+          real=$(echo $filter | cut -d: -f2)
+          if [ "$src" != "$real" ]; then
+            tmp_src=$(echo $src | sed 's/^[\/]*//;s/[\/]*$//')
+            tmp_src="$tmp_src/"
+            tmp_src="${tmp_src//\//\\/}"
+            tmp_real=$(echo $real | sed 's/^[\/]*//;s/[\/]*$//')
+            tmp_real="$tmp_real/"
+            tmp_real="${tmp_real//\//\\/}"
+            target=$(echo $file | sed "s/$tmp_src/$tmp_real/g")
+          fi
+          break
+        fi
+      done
+    fi
+
+    # Exclude filters
+    if [ -s "$excludes_file" ] && [ $copy -eq 1 ]; then
+      for filter in $(cat "$excludes_file"); do
+        if [[ "$file" =~ ^$filter ]]; then
+          copy=0
+          break
+        fi
+      done
+    fi
+
+    if [ $copy -eq 1 ]; then
+      # Handle modman file
+      if [ -s "$modman_file" ]; then
+        IFS=$'\n'
+        for line in $(cat "$modman_file"); do
+          if [ -z "$line" ] || [[ $line =~ ^# ]] || [[ $line =~ ^@ ]]; then
+            continue
+          fi
+          IFS=$' \t'
+          line="${line/\*/}" # remove * char
+          set -- $line       # set $1 and $2
+          if [[ "$file" =~ ^$1 ]]; then
+            # Remove trailing slashes and escape paths for sed
+            src=$(echo $1 | sed 's/^[\/]*//;s/[\/]*$//')
+            dest=$(echo $2 | sed 's/^[\/]*//;s/[\/]*$//')
+            src="${src//\//\\/}"
+            dest="${dest//\//\\/}"
+            target=$(echo $file | sed "s/$src/$dest/g")
+            deploy_file "$file" "$ROOT/$target"
+            echo "$target" >> "$deployed_file"
+          fi
+        done
+      else
+        deploy_file "$file" "$ROOT/$target"
+        echo "$target" >> "$deployed_file"
+      fi
+    fi
+  done
+
+  return 0
+}
+
 # Creates module dir, clones git repo and optionally stores include/exclude filters
 create_module()
 {
