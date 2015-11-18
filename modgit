@@ -62,6 +62,7 @@ copyright.*
 changelog.*
 credit.*
 faq.*
+gitchangelist
 \.travis.*
 \.git.*
 modman
@@ -376,12 +377,31 @@ sync_changelist_files()
 
 #todo: place output of `find` into var $repofiles, and also git diff list of changed files var $changelist
 
+
+
 #  foreach(target in $changelist[delete]) delete target.
 #  then foreach(file in ...) do
 #  if file in $repofiles & $changelist[add, modify],
 #    deploy and echo to $deployed_file
 #   else
 #    echo to $deployed_file
+
+
+declare -A changelist
+#set IFS to TAB
+while IFS="	", read -r -a arrayline
+do
+	((${#arrayline[@]} >= 2)) || continue #drop empty line?
+	# array item >> [skin/frontend/example/mobile/css/styles.css]=M
+	changelist[${arrayline[1]}]=${arrayline[0]}
+done < gitchangelist
+#
+#for key in ${!changelist[@]}
+#do
+#	echo "${key} ---> ${changelist[${key}]}"
+#done
+
+
 
 
   for file in $(find . -type f -not -iwholename '*.git*' | sed 's/^\.\///'); do
@@ -559,6 +579,8 @@ update_module()
   local new_commit=$(git rev-parse HEAD)
   local count=$(git diff --shortstat "$old_commit" "$new_commit" | cut -d" " -f2)
 
+
+
   [ $DRY_RUN -eq 1 ] && git checkout --quiet "$old_commit"
 
   [ "$count" = "" ] && echo "No changes found" && return 0
@@ -569,6 +591,8 @@ update_module()
     echo "$count file(s) changed"
     return 0
   fi
+  #write out basic changelist to file > file should be included into excludes.modgit
+  git --no-pager diff --name-status "$old_commit" "$new_commit" > gitchangelist
 
   if delete_files "$module" &&
     move_files "$module";
