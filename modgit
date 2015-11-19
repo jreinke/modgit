@@ -117,7 +117,7 @@ if [ "$1" = "help" ] || [ -z "$1" ]; then
   exit 0
 fi
 
-REGEX_ACTION="(list|info|files|ls|clone|add|update|up|update-all|up-all|remove|rm|remove-all|rm-all|proxy)"
+REGEX_ACTION="(list|info|files|ls|clone|add|update|up|update-all|up-all|syncronize|sync|remove|rm|remove-all|rm-all|proxy)"
 
 # Accept action as first argument
 if [[ "$1" =~ $REGEX_ACTION ]]; then
