@@ -63,7 +63,6 @@ copyright.*
 changelog.*
 credit.*
 faq.*
-gitchangelist
 \.travis.*
 \.git.*
 modman
@@ -364,15 +363,13 @@ delete_changelist_files()
 {
 	local module="$1"
 	local module_dir="$MODGIT_DIR/$module"
-	changelist=$1
+	changelist="$1"
 
 	[ $DRY_RUN -eq 1 ] && echo_b "Would remove changelist files:" || echo_b "Removing changelist files:"
 
-	${!changelist[@]}
-
 	for file in ${!changelist[@]}; do
-		if ! [ -z "$file" ] && [ -f "$ROOT/$file" ] && [ "${changelist[${file}]}" == "D" ]; then
-			echo $file
+		if [ -f "$ROOT/$file" ] && [ "${changelist[$file]}" == "D" ]; then
+			echo "$file"
 
 			# Remove deployed file and empty dirs
 			if [ $DRY_RUN -eq 0 ]; then
@@ -508,8 +505,6 @@ update_module()
     echo "$count file(s) changed"
     return 0
   fi
-  #write out basic changelist to file > file should be included into excludes.modgit
-  git --no-pager diff --name-status "$old_commit" "$new_commit" > gitchangelist
 
   if delete_files "$module" &&
     move_files "$module";
@@ -526,6 +521,7 @@ sync_module()
   local module="$1"
   local module_dir="$MODGIT_DIR/$module"
   local source_dir="$module_dir/source"
+  local gitchangelist="$module_dir/gitchangelist"
 
   require_module_dir "$module"
 
@@ -581,7 +577,7 @@ sync_module()
     return 0
   fi
   #write out basic changelist to file > file should be included into excludes.modgit
-  git --no-pager diff --name-status "$old_commit" "$new_commit" > gitchangelist
+  git --no-pager diff --name-status "$old_commit" "$new_commit" > "$gitchangelist"
 
   if sync_changelist_files "$module"
   then
@@ -601,6 +597,7 @@ sync_changelist_files()
   local excludes_file="$module_dir/excludes.modgit"
   local modman_file="$source_dir/modman"
   local deployed_file="$module_dir/deployed.modgit"
+  local gitchangelist="$module_dir/gitchangelist"
 
   > "$deployed_file" # empty file
 
@@ -608,25 +605,24 @@ sync_changelist_files()
 
   [ $DRY_RUN -eq 1 ] && echo_b "Would deploy:" || echo_b "Deploying:"
 
-	#  foreach(target in $changelist[delete]) delete target.
-	#  then foreach(file in ...) do
-	#  if file in $repofiles & $changelist[add, modify],
-	#    deploy and echo to $deployed_file
-	#   else
-	#    echo to $deployed_file
-
 	declare -A changelist
 	#set IFS to TAB
-	while IFS=" ", read -r -a arrayline
+	while IFS=$'\t', read -r -a arrayline
 	do
 		((${#arrayline[@]} >= 2)) || continue #drop empty line?
 		# array item >> [skin/frontend/example/mobile/css/styles.css]=M
 		changelist[${arrayline[1]}]=${arrayline[0]}
-	done < gitchangelist
+	done < "$gitchangelist"
+
+	for key in ${!changelist[@]}
+	do
+		echo "${key} -> ${changelist[${key}]}"
+	done
 
 	#remove deployed files from changelist with value D
 	delete_changelist_files ${changelist}
 
+	echo_b "Syncing files:"
 
 	for file in $(find . -type f -not -iwholename '*.git*' | sed 's/^\.\///'); do
     # Copy file by default
@@ -693,7 +689,7 @@ sync_changelist_files()
         done
       else
         # only deploy if it is A added or M modified
-		if [ "${changelist[$file]+isset}" ] && [ ${changelist[$file]} == "M" ] || [ ${changelist[$file]} == "A" ]; then
+		if [ "${changelist[$file]+isset}" ] && [ "${changelist[$file]}" == "M" ] || [ "${changelist[$file]}" == "A" ]; then
 			deploy_file "$file" "$ROOT/$target"
 		fi;
         # always output file listing
