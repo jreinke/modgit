@@ -358,123 +358,39 @@ move_files()
   return 0
 }
 
-# Synchronizes files affected by commit history
-sync_changelist_files()
+# Deletes changelist files with value "D"
+delete_changelist_files()
 {
-  local module="$1"
-  local module_dir="$MODGIT_DIR/$module"
-  local source_dir="$module_dir/source"
-  local includes_file="$module_dir/includes.modgit"
-  local excludes_file="$module_dir/excludes.modgit"
-  local modman_file="$source_dir/modman"
-  local deployed_file="$module_dir/deployed.modgit"
+	local module="$1"
+	local module_dir="$MODGIT_DIR/$module"
+	changelist=$1
 
-  > "$deployed_file" # empty file
+	[ $DRY_RUN -eq 1 ] && echo_b "Would remove changelist files:" || echo_b "Removing changelist files:"
 
-  cd "$source_dir" || return 1
+	${!changelist[@]}
 
-  [ $DRY_RUN -eq 1 ] && echo_b "Would deploy:" || echo_b "Deploying:"
+	for file in ${!changelist[@]}; do
+		if ! [ -z "$file" ] && [ -f "$ROOT/$file" ] && [ "${changelist[${file}]}" == "D" ]; then
+			echo $file
 
-#todo: place output of `find` into var $repofiles, and also git diff list of changed files var $changelist
+			# Remove deployed file and empty dirs
+			if [ $DRY_RUN -eq 0 ]; then
+				rm "$ROOT/$file" 2>/dev/null
+				prev_dir=""
+				dir=$(dirname $file)
+				while [ "$dir" != "$prev_dir" ]; do
+					prev_dir=$dir
+					test_dir="$ROOT/$dir"
+					if ! [ "$(ls -A $test_dir)" ]; then
+						rmdir $test_dir
+					fi
+					dir=${dir%/*}
+				done
+			fi
+		fi
+	done
 
-
-
-#  foreach(target in $changelist[delete]) delete target.
-#  then foreach(file in ...) do
-#  if file in $repofiles & $changelist[add, modify],
-#    deploy and echo to $deployed_file
-#   else
-#    echo to $deployed_file
-
-
-declare -A changelist
-#set IFS to TAB
-while IFS="	", read -r -a arrayline
-do
-	((${#arrayline[@]} >= 2)) || continue #drop empty line?
-	# array item >> [skin/frontend/example/mobile/css/styles.css]=M
-	changelist[${arrayline[1]}]=${arrayline[0]}
-done < gitchangelist
-#
-#for key in ${!changelist[@]}
-#do
-#	echo "${key} ---> ${changelist[${key}]}"
-#done
-
-
-
-
-  for file in $(find . -type f -not -iwholename '*.git*' | sed 's/^\.\///'); do
-    # Copy file by default
-    copy=1
-    target="$file"
-
-    # Include filters
-    if [ -s "$includes_file" ]; then
-      copy=0
-      for filter in $(cat "$includes_file"); do
-        src=$(echo $filter | cut -d: -f1)
-        if [ -z "$src" ]; then
-          continue
-        fi
-        if [[ "$file" =~ ^$src ]]; then
-          copy=1
-          # Handle optional different target
-          real=$(echo $filter | cut -d: -f2)
-          if [ "$src" != "$real" ]; then
-            tmp_src=$(echo $src | sed 's/^[\/]*//;s/[\/]*$//')
-            tmp_src="$tmp_src/"
-            tmp_src="${tmp_src//\//\\/}"
-            tmp_real=$(echo $real | sed 's/^[\/]*//;s/[\/]*$//')
-            tmp_real="$tmp_real/"
-            tmp_real="${tmp_real//\//\\/}"
-            target=$(echo $file | sed "s/$tmp_src/$tmp_real/g")
-          fi
-          break
-        fi
-      done
-    fi
-
-    # Exclude filters
-    if [ -s "$excludes_file" ] && [ $copy -eq 1 ]; then
-      for filter in $(cat "$excludes_file"); do
-        if [[ "$file" =~ ^$filter ]]; then
-          copy=0
-          break
-        fi
-      done
-    fi
-
-    if [ $copy -eq 1 ]; then
-      # Handle modman file
-      if [ -s "$modman_file" ]; then
-        IFS=$'\n'
-        for line in $(cat "$modman_file"); do
-          if [ -z "$line" ] || [[ $line =~ ^# ]] || [[ $line =~ ^@ ]]; then
-            continue
-          fi
-          IFS=$' \t'
-          line="${line/\*/}" # remove * char
-          set -- $line       # set $1 and $2
-          if [[ "$file" =~ ^$1 ]]; then
-            # Remove trailing slashes and escape paths for sed
-            src=$(echo $1 | sed 's/^[\/]*//;s/[\/]*$//')
-            dest=$(echo $2 | sed 's/^[\/]*//;s/[\/]*$//')
-            src="${src//\//\\/}"
-            dest="${dest//\//\\/}"
-            target=$(echo $file | sed "s/$src/$dest/g")
-            deploy_file "$file" "$ROOT/$target"
-            echo "$target" >> "$deployed_file"
-          fi
-        done
-      else
-        deploy_file "$file" "$ROOT/$target"
-        echo "$target" >> "$deployed_file"
-      fi
-    fi
-  done
-
-  return 0
+	return 0
 }
 
 # Creates module dir, clones git repo and optionally stores include/exclude filters
@@ -602,6 +518,192 @@ update_module()
     return 1
   fi
 }
+
+# Syncs a modules changed files
+sync_module()
+{
+  local module="$1"
+  local module_dir="$MODGIT_DIR/$module"
+  local source_dir="$module_dir/source"
+
+  require_module_dir "$module"
+
+  echo_b "Syncing '$module' module..."
+  sleep 1
+
+  cd "$source_dir"
+
+  local old_commit=$(git rev-parse HEAD)
+
+  # If module was fetched with a specific tag
+  if [ -s "$module_dir/tag.modgit" ]; then
+    if [ -z "$TAG" ]; then
+      local repo_tag=$(cat "$module_dir/tag.modgit")
+      echo "'$module' module was fetched from tag '$repo_tag' and thus cannot be updated without -t option"
+      return 1
+    fi
+
+    if [ -z $(git tag -l "$TAG") ]; then
+      echo "Tag '$TAG' does not exist"
+      return 1
+    fi
+
+    if ! git checkout --quiet "$TAG"; then
+      echo "An error occurred while fetching tag $TAG"
+      return 1
+    fi
+
+    local old_tag=$(cat "$module_dir/tag.modgit")
+    echo "Switching from tag $old_tag to $TAG"
+
+    [ $DRY_RUN -eq 0 ] && echo "$TAG" > "$module_dir/tag.modgit"
+  else
+    # Ignoring -b option (switching branch) because not yet supported
+    [ -s "$module_dir/branch.modgit" ] && BRANCH=$(cat "$module_dir/branch.modgit")
+
+    git pull --quiet origin "$BRANCH" && git submodule --quiet update --init --recursive || return 1
+  fi
+
+  local new_commit=$(git rev-parse HEAD)
+  local count=$(git diff --shortstat "$old_commit" "$new_commit" | cut -d" " -f2)
+
+
+
+  [ $DRY_RUN -eq 1 ] && git checkout --quiet "$old_commit"
+
+  [ "$count" = "" ] && echo "No changes found" && return 0
+
+  if [ $DRY_RUN -eq 1 ]; then
+    echo_b "Would modify:"
+    git --no-pager diff --name-only "$old_commit" "$new_commit"
+    echo "$count file(s) changed"
+    return 0
+  fi
+  #write out basic changelist to file > file should be included into excludes.modgit
+  git --no-pager diff --name-status "$old_commit" "$new_commit" > gitchangelist
+
+  if sync_changelist_files "$module"
+  then
+    return 0
+  else
+    return 1
+  fi
+}
+
+# Synchronizes files affected by commit history
+sync_changelist_files()
+{
+  local module="$1"
+  local module_dir="$MODGIT_DIR/$module"
+  local source_dir="$module_dir/source"
+  local includes_file="$module_dir/includes.modgit"
+  local excludes_file="$module_dir/excludes.modgit"
+  local modman_file="$source_dir/modman"
+  local deployed_file="$module_dir/deployed.modgit"
+
+  > "$deployed_file" # empty file
+
+  cd "$source_dir" || return 1
+
+  [ $DRY_RUN -eq 1 ] && echo_b "Would deploy:" || echo_b "Deploying:"
+
+	#  foreach(target in $changelist[delete]) delete target.
+	#  then foreach(file in ...) do
+	#  if file in $repofiles & $changelist[add, modify],
+	#    deploy and echo to $deployed_file
+	#   else
+	#    echo to $deployed_file
+
+	declare -A changelist
+	#set IFS to TAB
+	while IFS=" ", read -r -a arrayline
+	do
+		((${#arrayline[@]} >= 2)) || continue #drop empty line?
+		# array item >> [skin/frontend/example/mobile/css/styles.css]=M
+		changelist[${arrayline[1]}]=${arrayline[0]}
+	done < gitchangelist
+
+	#remove deployed files from changelist with value D
+	delete_changelist_files ${changelist}
+
+
+	for file in $(find . -type f -not -iwholename '*.git*' | sed 's/^\.\///'); do
+    # Copy file by default
+    copy=1
+    target="$file"
+
+    # Include filters
+    if [ -s "$includes_file" ]; then
+      copy=0
+      for filter in $(cat "$includes_file"); do
+        src=$(echo $filter | cut -d: -f1)
+        if [ -z "$src" ]; then
+          continue
+        fi
+        if [[ "$file" =~ ^$src ]]; then
+          copy=1
+          # Handle optional different target
+          real=$(echo $filter | cut -d: -f2)
+          if [ "$src" != "$real" ]; then
+            tmp_src=$(echo $src | sed 's/^[\/]*//;s/[\/]*$//')
+            tmp_src="$tmp_src/"
+            tmp_src="${tmp_src//\//\\/}"
+            tmp_real=$(echo $real | sed 's/^[\/]*//;s/[\/]*$//')
+            tmp_real="$tmp_real/"
+            tmp_real="${tmp_real//\//\\/}"
+            target=$(echo $file | sed "s/$tmp_src/$tmp_real/g")
+          fi
+          break
+        fi
+      done
+    fi
+
+    # Exclude filters
+    if [ -s "$excludes_file" ] && [ $copy -eq 1 ]; then
+      for filter in $(cat "$excludes_file"); do
+        if [[ "$file" =~ ^$filter ]]; then
+          copy=0
+          break
+        fi
+      done
+    fi
+
+    if [ $copy -eq 1 ]; then
+      # Handle modman file
+      if [ -s "$modman_file" ]; then
+        IFS=$'\n'
+        for line in $(cat "$modman_file"); do
+          if [ -z "$line" ] || [[ $line =~ ^# ]] || [[ $line =~ ^@ ]]; then
+            continue
+          fi
+          IFS=$' \t'
+          line="${line/\*/}" # remove * char
+          set -- $line       # set $1 and $2
+          if [[ "$file" =~ ^$1 ]]; then
+            # Remove trailing slashes and escape paths for sed
+            src=$(echo $1 | sed 's/^[\/]*//;s/[\/]*$//')
+            dest=$(echo $2 | sed 's/^[\/]*//;s/[\/]*$//')
+            src="${src//\//\\/}"
+            dest="${dest//\//\\/}"
+            target=$(echo $file | sed "s/$src/$dest/g")
+            deploy_file "$file" "$ROOT/$target"
+            echo "$target" >> "$deployed_file"
+          fi
+        done
+      else
+        # only deploy if it is A added or M modified
+		if [ "${changelist[$file]+isset}" ] && [ ${changelist[$file]} == "M" ] || [ ${changelist[$file]} == "A" ]; then
+			deploy_file "$file" "$ROOT/$target"
+		fi;
+        # always output file listing
+        echo "$target" >> "$deployed_file"
+      fi
+    fi
+  done
+
+  return 0
+}
+
 
 module_info()
 {
@@ -742,6 +844,16 @@ case "$ACTION" in
       fi
     done
     [ $DRY_RUN -eq 0 ] && echo_b "Updated all modules with $errors error(s)"
+    ;;
+
+  syncronize|sync)
+    # Sync specified module
+    module="$1"; shift
+    [ -z "$module" ] && fault "No module specified"
+
+    if ! sync_module "$module"; then
+      fault "Error syncing '$module', operation cancelled"
+    fi
     ;;
 
   remove|rm)
