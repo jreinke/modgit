@@ -27,6 +27,7 @@ $(tput bold)Module Commands:$(tput sgr0)
 -----------------------------------------------------------------------------------
   add <module> <repository>    Install a module by cloning specified git repository
   up <module>                  Update specified module
+  sync <module>                Sync modules changed files only
   rm <module>                  Remove specified module
   info <module>                Show information about a specific module
   files <module>               List deployed files of specified module
