@@ -15,6 +15,7 @@ $(tput bold)Global Commands:$(tput sgr0)
   init                         Initialize .modgit/ folder
   ls                           List installed modules
   up-all                       Update all installed modules
+  sync-all                     Sync all installed modules
   rm-all                       Remove all installed modules
 
 Available options:
@@ -116,7 +117,7 @@ if [ "$1" = "help" ] || [ -z "$1" ]; then
   exit 0
 fi
 
-REGEX_ACTION="(list|info|files|ls|clone|add|update|up|update-all|up-all|syncronize|sync|remove|rm|remove-all|rm-all|proxy)"
+REGEX_ACTION="(list|info|files|ls|clone|add|update|up|update-all|up-all|syncronize|sync|sync-all|remove|rm|remove-all|rm-all|proxy)"
 
 # Accept action as first argument
 if [[ "$1" =~ $REGEX_ACTION ]]; then
@@ -576,7 +577,7 @@ sync_module()
     echo "$count file(s) changed"
     return 0
   fi
-  #write out basic changelist to file > file should be included into excludes.modgit
+  #write out basic changelist to file
   git --no-pager diff --name-status "$old_commit" "$new_commit" > "$gitchangelist"
 
   if sync_changelist_files "$module"
@@ -851,6 +852,23 @@ case "$ACTION" in
     if ! sync_module "$module"; then
       fault "Error syncing '$module', operation cancelled"
     fi
+    ;;
+
+  sync-all)
+    # Sync all installed modules
+    [ -n "$1" ] && fault "Too many arguments for '$ACTION' command"
+
+    require_modules
+
+    errors=0
+    for module in $(ls -1 "$MODGIT_DIR"); do
+      [ -d "$MODGIT_DIR/$module" ] || continue;
+      if ! sync_module "$module"; then
+        echo_b "-e" "Error occurred while syncing '$module'"
+        errors=$((errors+1))
+      fi
+    done
+    [ $DRY_RUN -eq 0 ] && echo_b "Synced all modules with $errors error(s)"
     ;;
 
   remove|rm)
